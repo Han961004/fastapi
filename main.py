@@ -55,8 +55,19 @@ def crawl_and_save():
 
     return {"status": "ok", "inserted": inserted}
 
+
+
+
 # -----------------------------
-# 프론트로 보내기 
+# 서버 헬스체크 
+# -----------------------------
+@app.get("/api/health")
+def health():
+    return {"status": "ok"}
+
+
+# -----------------------------
+# 다이나모 디비 전체 item 보내기 
 # -----------------------------
 @app.get("/api/list")
 def get_all_items():
