@@ -20,6 +20,15 @@ def root():
 # /crawl 호출 → 크롤링 + DynamoDB 저장
 # -> 6시간마다 돌리도록 추후에  
 # -----------------------------
+def get_next_id():
+    response = table.update_item(
+        Key={"counter": "main"},
+        UpdateExpression="SET current_id = current_id + :inc",
+        ExpressionAttributeValues={":inc": 1},
+        ReturnValues="UPDATED_NEW"
+    )
+    return int(response["Attributes"]["current_id"])
+
 @app.get("/crawl")
 def crawl_and_save():
     data = run_all_crawlers()
@@ -27,30 +36,23 @@ def crawl_and_save():
 
     for _, items in data.items():
         for item in items:
-
-            url = item.get("url")
-
-            # 🔥 url이 없으면 DynamoDB 저장 불가 → 스킵
-            if not url or url == "None":
-                print(f"⚠️ URL 없음 → 저장 skipped: {item}")
-                continue
-
+            
+            new_id = get_next_id()    # 🔥 숫자 ID 발급
+            
             table.put_item(
                 Item={
-                    "url": url,    # PK
+                    "id": new_id,             # 🔥 숫자 PK
+                    "url": item.get("url"),
                     "title": item.get("title"),
-                    "date": item.get("date"),
-                    "content": item.get("content"),
-
                     "type": item.get("type"),
                     "major": item.get("major"),
                     "grade": item.get("grade"),
                     "price": item.get("price"),
                     "start_at": item.get("start_at"),
                     "end_at": item.get("end_at"),
+                    "content": item.get("content"),
                     "etc": item.get("etc"),
-
-                    "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 }
             )
 
@@ -73,20 +75,9 @@ def health():
 # 다이나모 디비 전체 item 보내기 
 # -----------------------------
 @app.get("/api/list")
-def get_all_items():
-    try:
-        # DynamoDB 전체 스캔
-        response = table.scan()
-        items = response.get("Items", [])
-
-        return {
-            "count": len(items),
-            "items": items
-        }
-
-    except Exception as e:
-        return {"error": str(e)}
-
+def get_all():
+    res = table.scan()
+    return res.get("Items", [])
 
 
 # -----------------------------
@@ -160,19 +151,15 @@ def get_scholarship_list(category: str = "all", search: str = ""):
 
 
 # ----------------------------------
-# 2) 장학금 상세 조회 (url = id로 사용)
+# 2) 장학금 상세 조회
 # ----------------------------------
-@app.get("/api/scholarships/{item_id}")
-def get_scholarship_detail(item_id: str):
-    # PK = url
-    response = table.get_item(
-        Key={"url": item_id}
-    )
-
-    item = response.get("Item")
+@app.get("/api/scholarships/{id}")
+def get_detail(id: int):
+    res = table.get_item(Key={"id": id})
+    item = res.get("Item")
 
     if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise HTTPException(404, "Not found")
 
     return item
 
