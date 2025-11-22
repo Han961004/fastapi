@@ -1,6 +1,6 @@
 # main.py
 from fastapi import FastAPI, HTTPException
-from typing import List
+from typing import List, Dict
 import boto3
 from datetime import datetime
 import time
@@ -154,3 +154,23 @@ def get_detail(id: int):
         raise HTTPException(404, "Not found")
 
     return item
+
+
+
+
+@app.post("/upload-json")
+def upload_json(data: List[Dict]):
+    inserted = 0
+
+    for item in data:
+        # 새 ID 자동 증가 생성
+        new_id = get_next_id()
+
+        item["id"] = new_id
+        item["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # DynamoDB 저장
+        table.put_item(Item=item)
+        inserted += 1
+
+    return {"status": "ok", "inserted": inserted}
