@@ -158,6 +158,18 @@ def get_detail(id: int):
 
 
 
+# -----------------------------
+# 🔥 ID 자동 증가 함수
+# -----------------------------
+def get_next_id():
+    response = table.update_item(
+        Key={"counter": "main"},
+        UpdateExpression="SET current_id = current_id + :inc",
+        ExpressionAttributeValues={":inc": 1},
+        ReturnValues="UPDATED_NEW"
+    )
+    return int(response["Attributes"]["current_id"])
+
 @app.post("/upload-json")
 def upload_json(data: List[Dict]):
     inserted = 0
