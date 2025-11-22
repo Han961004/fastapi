@@ -288,7 +288,6 @@ def normalize_major(major: str) -> str:
 
 
 @app.post("/api/filter-scholarships")
-# major 필터링 로직을 수정하여 'any'도 포함시킬 수 있도록 처리
 async def filter_scholarships(req: ResumeRequest):
     response = table.scan()  # DynamoDB에서 장학금 목록을 가져옵니다.
     items = response.get("Items", [])
@@ -303,15 +302,15 @@ async def filter_scholarships(req: ResumeRequest):
         item_major = normalize_major(item.get("major", ""))  # DynamoDB에서 가져온 전공도 표준화
 
         # major가 "any"일 경우, 전공 필터링을 건너뛰고 매칭
-        if req_major == "any":
-            match = True
-        else:
-            # 전공이 명시되어 있고, 이를 비교하여 매칭
-            if req_major and item_major:
-                if req_major in item_major or item_major in req_major:
-                    match = True
-            elif req_major == item_major:  # 전공이 정확히 일치하는 경우
+        if req_major == "any" or item_major == "any":
+            match = True  # "any" 전공이 일치하는 경우 무조건 추천
+
+        elif req_major and item_major:  # 전공이 명시되어 있을 경우
+            # 전공이 일치하는 경우 추천
+            if req_major in item_major or item_major in req_major:
                 match = True
+        elif req_major == item_major:  # 전공이 정확히 일치하는 경우
+            match = True
 
         # 학년 필터링
         if req.grade and item.get("grade") == req.grade:
@@ -331,4 +330,3 @@ async def filter_scholarships(req: ResumeRequest):
         "count": len(recommended),
         "results": recommended
     }
-
