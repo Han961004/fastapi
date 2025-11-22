@@ -1,5 +1,5 @@
 # main.py
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from typing import List
 import boto3
 from datetime import datetime
@@ -17,7 +17,8 @@ def root():
     return {"message": "FastAPI running on EC2"}
 
 # -----------------------------
-# 🔥 /crawl 호출 → 크롤링 + DynamoDB 저장
+# /crawl 호출 → 크롤링 + DynamoDB 저장
+# -> 6시간마다 돌리도록 추후에  
 # -----------------------------
 @app.get("/crawl")
 def crawl_and_save():
@@ -134,3 +135,44 @@ async def submit_resume(req: ResumeRequest):
         "count": len(recommended),
         "results": recommended
     }
+
+
+
+# ----------------------------------
+# 1) 전체 장학금 목록
+# ----------------------------------
+@app.get("/api/scholarships")
+def get_scholarship_list(category: str = "all", search: str = ""):
+    # DynamoDB 스캔
+    response = table.scan()
+    items = response.get("Items", [])
+
+    # 검색 필터
+    if search:
+        items = [i for i in items if search.lower() in (i.get("title") or "").lower()]
+
+    # category 필터
+    # (너가 직접 type 필드를 나중에 넣으면 type 으로 필터)
+    if category != "all":
+        items = [i for i in items if i.get("type") == category]
+
+    return {"count": len(items), "items": items}
+
+
+# ----------------------------------
+# 2) 장학금 상세 조회 (url = id로 사용)
+# ----------------------------------
+@app.get("/api/scholarships/{item_id}")
+def get_scholarship_detail(item_id: str):
+    # PK = url
+    response = table.get_item(
+        Key={"url": item_id}
+    )
+
+    item = response.get("Item")
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    return item
+
