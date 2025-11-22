@@ -199,10 +199,10 @@ def upload_json(data: List[Dict]):
 # -------------------------------
 @app.post("/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
-    # 파일을 메모리에서 바로 읽음
+    # 파일을 메모리에서 바로 읽기
     file_content = await file.read()
 
-    # 메모리에서 바로 PDF 처리
+    # 메모리에서 PDF 처리
     extracted_text = extract_text_from_pdf_memory(file_content)
     
     if not extracted_text.strip():
@@ -214,7 +214,10 @@ async def upload_pdf(file: UploadFile = File(...)):
     # 3. 이력서 정보 출력
     print(f"📌 추출된 이력서 데이터: {resume_data}")
 
-    return {"resume_data": resume_data}
+    # 4. 이력서 기반으로 장학금 필터링
+    filtered_scholarships = await filter_scholarships(resume_data)
+
+    return {"resume_data": resume_data, "filtered_scholarships": filtered_scholarships}
 
 
 def extract_text_from_pdf_memory(file_content: bytes) -> str:
@@ -235,3 +238,42 @@ def extract_text_from_pdf_memory(file_content: bytes) -> str:
         texts.append(t)
 
     return "\n\n".join(texts).strip()
+
+
+
+@app.post("/api/filter-scholarships")
+async def filter_scholarships(req: ResumeRequest):
+    """
+    이력서 정보에 맞는 장학금을 필터링하여 반환합니다.
+    이력서에서 전공, 학년, 자격증 정보를 바탕으로 장학금 목록을 반환합니다.
+    """
+    # DynamoDB에서 모든 장학금 항목을 가져옵니다.
+    response = table.scan()
+    items = response.get("Items", [])
+
+    recommended = []
+
+    # 필터링 조건: major, grade, certificates
+    for item in items:
+        match = False
+
+        # 전공 필터링
+        if req.major and item.get("major") == req.major:
+            match = True
+        
+        # 학년 필터링
+        if req.grade and item.get("grade") == req.grade:
+            match = True
+        
+        # 자격증 필터링
+        item_certs = item.get("certificates", [])
+        if req.certificates:
+            if any(cert in item_certs for cert in req.certificates):
+                match = True
+
+        # 조건에 맞는 장학금 항목을 recommended 목록에 추가
+        if match:
+            recommended.append(item)
+
+    # 필터링된 장학금 항목 반환
+    return {"count": len(recommended), "results": recommended}
