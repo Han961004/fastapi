@@ -1,10 +1,7 @@
-# crawler.py
-
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from datetime import datetime
-import json
 import time
 
 # -------------------------------------------------------
@@ -25,6 +22,7 @@ def parse_korean_datetime(text):
 # -------------------------------------------------------
 
 def parse_detail(url):
+    print(f"   🔎 상세 요청: {url}")   # 디버깅용 로그 추가
     res = requests.get(url)
     soup = BeautifulSoup(res.text, "html.parser")
 
@@ -49,10 +47,14 @@ def crawl_list(list_url, max_pages=1):
 
     for p in range(1, max_pages + 1):
         url = f"{list_url}&pageIndex={p}"
+        print(f"➡️ 목록 요청: {url}")   # 디버깅용 로그 추가
+
         res = requests.get(url)
         soup = BeautifulSoup(res.text, "html.parser")
 
         links = soup.select("a[href*='selectBbsNttView']")
+        print(f"   ➕ 발견된 상세링크 수: {len(links)}")  # 몇 개 크롤했는지 로그
+
         for a in links:
             href = a.get("href")
 
@@ -84,6 +86,7 @@ def crawl_list(list_url, max_pages=1):
 # -------------------------------------------------------
 
 def parse_tourism_detail(url):
+    print(f"   🔎 관광 상세: {url}")
     res = requests.get(url)
     soup = BeautifulSoup(res.text, "html.parser")
 
@@ -119,10 +122,14 @@ def crawl_tourism_list(list_url, max_pages=1):
 
     for p in range(1, max_pages + 1):
         url = f"{list_url}?article.offset={(p-1)*10}&articleLimit=10"
+        print(f"➡️ 관광 목록 요청: {url}")
+
         res = requests.get(url)
         soup = BeautifulSoup(res.text, "html.parser")
 
         links = soup.select("a[href*='articleNo']")
+        print(f"   ➕ 관광 상세링크 수: {len(links)}")
+
         for a in links:
             href = a.get("href")
             full = urljoin(list_url, href)
@@ -154,8 +161,8 @@ job_headers = {
     "x-auth-mid": "0105010000"
 }
 
-
 def fetch_json(url):
+    print(f"   🔎 job API 요청: {url}")
     for _ in range(3):
         res = requests.get(url, headers=job_headers)
         try:
@@ -190,6 +197,7 @@ def get_job_list(category_big, category_mid, page, per_page=9):
 
 
 def crawl_job_all(category_big="00", category_mid="00", max_pages=3):
+    print("➡️ job 전체 크롤링 시작")
     all_items = []
 
     first_list, total_pages = get_job_list(category_big, category_mid, 1)
@@ -206,10 +214,12 @@ def crawl_job_all(category_big="00", category_mid="00", max_pages=3):
 
 
 # -------------------------------------------------------
-# ④ 전체 통합 크롤링 함수 (FastAPI에서 호출할 함수)
+# ④ 전체 통합 크롤링 함수
 # -------------------------------------------------------
 
 def run_all_crawlers():
+    print("🟦 [CRAWL] run_all_crawlers() 시작")
+
     result = {}
 
     # ---- www.kangwon ----
@@ -233,4 +243,5 @@ def run_all_crawlers():
     job_items = crawl_job_all(max_pages=3)
     result["대학일자리플러스"] = job_items
 
+    print("🟩 [CRAWL] 완료")
     return result
