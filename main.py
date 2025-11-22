@@ -162,26 +162,28 @@ def get_detail(id: int):
 # 🔥 ID 자동 증가 함수
 # -----------------------------
 def get_next_id():
-    response = table.update_item(
-        Key={"counter": "main"},
-        UpdateExpression="SET current_id = current_id + :inc",
-        ExpressionAttributeValues={":inc": 1},
-        ReturnValues="UPDATED_NEW"
-    )
-    return int(response["Attributes"]["current_id"])
+    # DynamoDB 전체 스캔해서 최대 id 찾기
+    response = table.scan(ProjectionExpression="id")
+    items = response.get("Items", [])
+
+    if not items:
+        return 1  # 첫 ID
+
+    max_id = max(int(item["id"]) for item in items)
+    return max_id + 1
+
 
 @app.post("/upload-json")
 def upload_json(data: List[Dict]):
     inserted = 0
 
     for item in data:
-        # 새 ID 자동 증가 생성
+        # 새 ID 생성 (max+1)
         new_id = get_next_id()
 
         item["id"] = new_id
         item["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # DynamoDB 저장
         table.put_item(Item=item)
         inserted += 1
 
