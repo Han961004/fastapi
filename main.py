@@ -264,37 +264,42 @@ def extract_text_from_pdf_memory(file_content: bytes) -> str:
 
 @app.post("/api/filter-scholarships")
 async def filter_scholarships(req: ResumeRequest):
-    """
-    이력서 정보에 맞는 장학금을 필터링하여 반환합니다.
-    이력서에서 전공, 학년, 자격증 정보를 바탕으로 장학금 목록을 반환합니다.
-    """
-    # DynamoDB에서 모든 장학금 항목을 가져옵니다.
     response = table.scan()
     items = response.get("Items", [])
-
+    
     recommended = []
 
-    # 필터링 조건: major, grade, certificates
+    req_major = normalize_major(req.major)
+
     for item in items:
         match = False
 
-        # 전공 필터링
-        if req.major and item.get("major") == req.major:
-            match = True
+        # 🔥 전공 부분일치 (핵심!)
+        item_major = normalize_major(item.get("major", ""))
         
-        # 학년 필터링
-        if req.grade and item.get("grade") == req.grade:
-            match = True
+        # major가 "any"인 경우 필터에서 제외
+        if req_major != "any":
+            if req_major and item_major:
+                if req_major in item_major or item_major in req_major:
+                    match = True
+        else:
+            match = True  # major가 "any"인 경우 매칭
         
-        # 자격증 필터링
-        item_certs = item.get("certificates", [])
-        if req.certificates:
-            if any(cert in item_certs for cert in req.certificates):
+        # 🔥 학년 필터는 req.grade 있을 때만 사용
+        if req.grade:
+            if item.get("grade") == req.grade:
                 match = True
 
-        # 조건에 맞는 장학금 항목을 recommended 목록에 추가
+        # 🔥 자격증 (옵션)
+        item_certs = item.get("certificates", [])
+        if req.certificates and item_certs:
+            if any(c in item_certs for c in req.certificates):
+                match = True
+
         if match:
             recommended.append(item)
 
-    # 필터링된 장학금 항목 반환
-    return {"count": len(recommended), "results": recommended}
+    return {
+        "count": len(recommended),
+        "results": recommended
+    }
