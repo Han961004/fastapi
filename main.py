@@ -1,8 +1,10 @@
 # main.py
 from fastapi import FastAPI
+from typing import List
 import boto3
 from datetime import datetime
 from crawler import run_all_crawlers
+from pydantic import BaseModel
 
 app = FastAPI()
 
@@ -83,3 +85,49 @@ def get_all_items():
 
     except Exception as e:
         return {"error": str(e)}
+
+
+
+# -----------------------------
+# 이력 폼 받기 (Recommend API)
+# -----------------------------
+class ResumeRequest(BaseModel):
+    major: str
+    grade: str
+    certificates: List[str] = []
+
+
+@app.post("/api/resumes")
+async def submit_resume(req: ResumeRequest):
+
+    # DynamoDB에서 전체 스캔
+    response = table.scan()
+    items = response.get("Items", [])
+
+    recommended = []
+
+    for item in items:
+        
+        # 전공 필터
+        item_major = item.get("major")
+        if item_major and req.major not in item_major:
+            continue
+
+        # 학년 필터
+        item_grade = item.get("grade")
+        if item_grade and req.grade not in item_grade:
+            continue
+
+        # 자격증 필터
+        item_cert = item.get("certificates")
+        if item_cert:
+            if not any(c in req.certificates for c in item_cert):
+                continue
+
+        # 통과한 항목 추가
+        recommended.append(item)
+
+    return {
+        "count": len(recommended),
+        "results": recommended
+    }
