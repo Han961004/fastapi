@@ -7,6 +7,7 @@ import time
 from crawler import run_all_crawlers
 from pydantic import BaseModel
 from pdfcrawl import *
+import io
 
 
 app = FastAPI()
@@ -198,15 +199,11 @@ def upload_json(data: List[Dict]):
 # -------------------------------
 @app.post("/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
-    # PDF 파일 저장
-    file_location = f"./uploads/{file.filename}"
-    with open(file_location, "wb") as f:
-        f.write(await file.read())
-    
-    print(f"📄 {file.filename} 저장 완료!")
+    # 파일을 메모리에서 바로 읽음
+    file_content = await file.read()
 
-    # 1. PDF 파일에서 텍스트 추출
-    extracted_text = extract_text_from_pdf(file_location)
+    # 메모리에서 바로 PDF 처리
+    extracted_text = extract_text_from_pdf_memory(file_content)
     
     if not extracted_text.strip():
         return {"status": "fail", "message": "PDF에서 텍스트를 추출할 수 없습니다."}
@@ -217,7 +214,24 @@ async def upload_pdf(file: UploadFile = File(...)):
     # 3. 이력서 정보 출력
     print(f"📌 추출된 이력서 데이터: {resume_data}")
 
-    # # 4. 다이나모DB에서 필터링된 장학금 정보 조회
-    # filtered_scholarships = filter_scholarships_by_resume(resume_data)
-
     return {"resume_data": resume_data}
+
+
+def extract_text_from_pdf_memory(file_content: bytes) -> str:
+    """
+    메모리에서 PDF 파일을 읽고 텍스트 추출
+    """
+    from PyPDF2 import PdfReader
+
+    # 메모리에서 PDF 파일 읽기
+    reader = PdfReader(io.BytesIO(file_content))
+    texts = []
+
+    for page in reader.pages:
+        try:
+            t = page.extract_text() or ""
+        except Exception:
+            t = ""
+        texts.append(t)
+
+    return "\n\n".join(texts).strip()
