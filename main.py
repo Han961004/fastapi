@@ -192,6 +192,21 @@ def upload_json(data: List[Dict]):
 
     return {"status": "ok", "inserted": inserted}
 
+def extract_text_from_pdf_bytes(file_bytes: bytes) -> str:
+    from PyPDF2 import PdfReader
+    import io
+    
+    reader = PdfReader(io.BytesIO(file_bytes))
+    texts = []
+
+    for page in reader.pages:
+        try:
+            t = page.extract_text() or ""
+        except Exception:
+            t = ""
+        texts.append(t)
+
+    return "\n\n".join(texts).strip()
 
 
 # -------------------------------
@@ -199,25 +214,31 @@ def upload_json(data: List[Dict]):
 # -------------------------------
 @app.post("/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
-    # 파일을 메모리에서 바로 읽기
-    file_content = await file.read()
-
-    # 메모리에서 PDF 처리
-    extracted_text = extract_text_from_pdf_memory(file_content)
     
-    if not extracted_text.strip():
-        return {"status": "fail", "message": "PDF에서 텍스트를 추출할 수 없습니다."}
+    # 1. PDF를 메모리에서 바로 읽기
+    pdf_bytes = await file.read()
 
-    # 2. 텍스트에서 이력서 정보 추출
+    # 2. 텍스트 추출
+    extracted_text = extract_text_from_pdf_bytes(pdf_bytes)
+
     resume_data = parse_resume_text(extracted_text)
 
-    # 3. 이력서 정보 출력
-    print(f"📌 추출된 이력서 데이터: {resume_data}")
+    print("📌 추출된 이력서 데이터:", resume_data)
 
-    # 4. 이력서 기반으로 장학금 필터링
-    filtered_scholarships = await filter_scholarships(resume_data)
+    # 🎯 dict → ResumeRequest 로 변환
+    req = ResumeRequest(
+        major = resume_data.get("major", ""),
+        grade = resume_data.get("grade", ""),
+        certificates = [c.strip() for c in resume_data.get("certificates", "").split(",")]
+    )
 
-    return {"resume_data": resume_data, "filtered_scholarships": filtered_scholarships}
+    # 🎯 필터 실행
+    filtered_scholarships = await filter_scholarships(req)
+
+    return {
+        "resume_data": resume_data,
+        "recommended": filtered_scholarships
+    }
 
 
 def extract_text_from_pdf_memory(file_content: bytes) -> str:
