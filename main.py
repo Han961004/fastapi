@@ -299,23 +299,21 @@ async def filter_scholarships(req: ResumeRequest):
     for item in items:
         match = False
 
-        # 🔥 전공 부분일치 (핵심!)
         item_major = normalize_major(item.get("major", ""))  # DynamoDB에서 가져온 major도 표준화
-        
-        # major가 "any"인 경우 필터에서 제외
+
+        # 🔥 major가 "any"일 경우, 필터링을 하지 않음
         if req_major != "any":
             if req_major and item_major:
                 if req_major in item_major or item_major in req_major:
                     match = True
         else:
             match = True  # major가 "any"인 경우 매칭
-        
-        # 🔥 학년 필터는 req.grade 있을 때만 사용
-        if req.grade:
-            if item.get("grade") == req.grade:
-                match = True
 
-        # 🔥 자격증 (옵션)
+        # 🔥 학년 필터
+        if req.grade and item.get("grade") == req.grade:
+            match = True
+
+        # 🔥 자격증 필터
         item_certs = item.get("certificates", [])
         if req.certificates and item_certs:
             if any(c in item_certs for c in req.certificates):
