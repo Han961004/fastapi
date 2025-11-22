@@ -262,6 +262,31 @@ def extract_text_from_pdf_memory(file_content: bytes) -> str:
 
 
 
+
+def normalize_major(major: str) -> str:
+    """
+    전공명에서 공백, 대소문자 차이 등을 표준화하여 반환
+    예: '컴퓨터 공학', '컴퓨터과학' → '컴퓨터공학'
+    """
+    if not major:
+        return ""
+    
+    major = major.lower().strip()  # 소문자화하고 앞뒤 공백 제거
+
+    # 전공 표준화 (예시)
+    major_map = {
+        "컴퓨터공학": ["컴퓨터공학과", "컴퓨터과학", "소프트웨어공학"],
+        "정보기술": ["정보기술학", "IT", "정보통신기술"],
+        # 여기에 다른 전공도 추가할 수 있음
+    }
+
+    for standard, variants in major_map.items():
+        if major in [v.lower() for v in variants]:
+            return standard
+
+    return major  # 찾을 수 없으면 그대로 반환
+
+
 @app.post("/api/filter-scholarships")
 async def filter_scholarships(req: ResumeRequest):
     response = table.scan()
@@ -269,13 +294,13 @@ async def filter_scholarships(req: ResumeRequest):
     
     recommended = []
 
-    req_major = normalize_major(req.major)
+    req_major = normalize_major(req.major)  # major를 표준화
 
     for item in items:
         match = False
 
         # 🔥 전공 부분일치 (핵심!)
-        item_major = normalize_major(item.get("major", ""))
+        item_major = normalize_major(item.get("major", ""))  # DynamoDB에서 가져온 major도 표준화
         
         # major가 "any"인 경우 필터에서 제외
         if req_major != "any":
