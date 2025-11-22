@@ -99,32 +99,35 @@ class ResumeRequest(BaseModel):
 
 @app.post("/api/resumes")
 async def submit_resume(req: ResumeRequest):
-
-    # DynamoDB 전체 조회
     response = table.scan()
     items = response.get("Items", [])
 
     recommended = []
 
     for item in items:
-        
-        # 1) 전공 정확 매칭 (null 제거)
-        if item.get("major") != req.major:
+
+        match = False  # ← 최소 하나라도 맞으면 True
+
+        # --- 전공 OR 조건 ---
+        item_major = item.get("major")
+        if item_major and item_major == req.major:
+            match = True
+
+        # --- 학년 OR 조건 ---
+        item_grade = item.get("grade")
+        if item_grade and item_grade == req.grade:
+            match = True
+
+        # --- 자격증 OR 조건 ---
+        item_certs = item.get("certificates", [])
+        if item_certs:
+            if any(c in req.certificates for c in item_certs):
+                match = True
+
+        # --- 하나도 맞지 않으면 제외 ---
+        if not match:
             continue
 
-        # 2) 학년 정확 매칭 (null 제거)
-        if item.get("grade") != req.grade:
-            continue
-
-        # 3) 자격증 매칭 (하나라도 맞으면 통과)
-        item_certificates = item.get("certificates", [])
-        if item_certificates:
-            if not any(cert in req.certificates for cert in item_certificates):
-                continue
-
-        # =====================
-        # 통과한 항목만 추천 목록 추가
-        # =====================
         recommended.append(item)
 
     return {
